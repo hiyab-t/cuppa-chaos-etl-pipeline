@@ -1,0 +1,3 @@
+psycopg2-binary==2.9.9
+jmespath==1.0.1
+python-dateutil<3.0.0

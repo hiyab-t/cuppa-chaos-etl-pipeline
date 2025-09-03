@@ -1,0 +1,201 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Cuppa Chaos ETL pipeline for AWS week in the Data Engineering Generation\
+  \ UK and Ireland\n"
+Parameters:
+  YourName:
+    Type: String
+    Description: Enter your name in format 'first-last' to customise the way your
+      resources are named
+    Default: cuppa-chaos
+  TeamName:
+    Type: String
+    Description: Enter the team name you want to use for DB connections
+    Default: cuppa-chaos
+  NetworkStackName:
+    Type: String
+    Default: project-networking
+    Description: Network stack with VPC containing Redshift instance
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+    Description: Automatically look up the latest AMI for Amazon Linux v2
+  EC2InstanceProfileRoleName:
+    Type: String
+    Default: de-academy-ec2-role-instance-profile
+    Description: The shared EC2 instance profile name to use
+  EC2InstanceIngressIp:
+    Type: String
+    Description: Custom IP address for Grafana HTTP ingress rule
+  EC2UserData:
+    Type: String
+    Default: ''
+    Description: User data script to run on EC2 server boot
+Resources:
+  EtlLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${YourName}-etl-lambda
+      Runtime: python3.12
+      Handler: cuppa_chaos_etl_lambda.lambda_handler
+      Role:
+        Fn::Sub: arn:aws:iam::${AWS::AccountId}:role/lambda-execution-role
+      Timeout: 30
+      ReservedConcurrentExecutions: 10
+      Code:
+        S3Bucket: cuppa-chaos-deployment-bucket
+        S3Key: b30c2851a0fbca6550db36e9c669f7c4
+      VpcConfig:
+        SecurityGroupIds:
+        - Fn::ImportValue:
+            Fn::Sub: ${NetworkStackName}-VPCSGID
+        SubnetIds:
+        - Fn::ImportValue:
+            Fn::Sub: ${NetworkStackName}-PrivateSubnet0ID
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: ${YourName}-etl-lambda
+      Environment:
+        Variables:
+          SSM_PARAMETER_NAME:
+            Fn::Join:
+            - _
+            - Fn::Split:
+              - '-'
+              - Fn::Sub: ${YourName}_redshift_settings
+  CSVRawDataBucket:
+    Type: AWS::S3::Bucket
+    DependsOn:
+    - CSVRawDataBucketPermission
+    - EtlLambdaFunction
+    Properties:
+      BucketName:
+        Fn::Sub: ${YourName}-raw-data
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      NotificationConfiguration:
+        LambdaConfigurations:
+        - Event: s3:ObjectCreated:*
+          Function:
+            Fn::GetAtt:
+            - EtlLambdaFunction
+            - Arn
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: ${YourName}-raw-data
+  CSVRawDataBucketPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: EtlLambdaFunction
+      Principal: s3.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:s3:::${YourName}-raw-data
+  CSVRawDataBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: CSVRawDataBucket
+      PolicyDocument:
+        Statement:
+        - Sid: AllowSSLRequestsOnly
+          Action: s3:*
+          Principal: '*'
+          Effect: Deny
+          Resource:
+          - Fn::Sub: arn:aws:s3:::${YourName}-raw-data
+          - Fn::Sub: arn:aws:s3:::${YourName}-raw-data/*
+          Condition:
+            Bool:
+              aws:SecureTransport: 'false'
+  GrafanaEc2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId:
+        Ref: LatestAmiId
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: ${YourName}-ec2-grafana
+      NetworkInterfaces:
+      - AssociatePublicIpAddress: true
+        DeviceIndex: '0'
+        SubnetId:
+          Fn::ImportValue:
+            Fn::Sub: ${NetworkStackName}-PublicSubnet0ID
+        GroupSet:
+        - Fn::ImportValue:
+            Fn::Sub: ${NetworkStackName}-VPCSGID
+        - Fn::GetAtt: GrafanaEC2InstanceSecurityGroup.GroupId
+      LaunchTemplate:
+        LaunchTemplateId:
+          Ref: GrafanaEC2LaunchTemplate
+        Version:
+          Fn::GetAtt:
+          - GrafanaEC2LaunchTemplate
+          - LatestVersionNumber
+  GrafanaEC2LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName:
+        Fn::Sub: ${YourName}-ec2-grafana-launch-template
+      VersionDescription: '01'
+      LaunchTemplateData:
+        UserData:
+          Ref: EC2UserData
+        IamInstanceProfile:
+          Name:
+            Ref: EC2InstanceProfileRoleName
+        MetadataOptions:
+          HttpEndpoint: enabled
+          HttpProtocolIpv6: disabled
+          HttpPutResponseHopLimit: 10
+          HttpTokens: optional
+          InstanceMetadataTags: enabled
+        Monitoring:
+          Enabled: true
+        BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp3
+            VolumeSize: 8
+            Encrypted: true
+            DeleteOnTermination: true
+  GrafanaEC2InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Sets ingress and egress rules for HTTP, HTTPS and SSH
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: ${YourName}-ec2-grafana
+      VpcId:
+        Fn::ImportValue:
+          Fn::Sub: ${NetworkStackName}-VPCID
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp:
+          Fn::Sub: ${EC2InstanceIngressIp}/32
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp:
+          Fn::Sub: ${EC2InstanceIngressIp}/32
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0

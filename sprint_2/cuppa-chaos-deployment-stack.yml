@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Cuppa Chaos deployment bucket for S3 bucket + CF files + Lambda zips
+
+Parameters:
+  YourName:
+    Type: String
+    Description: Enter your name in format 'first-last' to customise the way your resources are named
+    Default: cuppa-chaos
+
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${YourName}-deployment-bucket'
+      PublicAccessBlockConfiguration: # do not allow any public access
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+      Tags:
+        - Key: Name
+          Value: !Sub '${YourName}-deployment-bucket'
+
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Statement:
+          - Sid: "AllowSSLRequestsOnly"
+            Action: "s3:*"
+            Principal: "*"
+            Effect: "Deny" # Block if...
+            Resource:
+              - !Sub "arn:aws:s3:::${YourName}-deployment-bucket"
+              - !Sub "arn:aws:s3:::${YourName}-deployment-bucket/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: "false" # ...the request is not HTTPS
