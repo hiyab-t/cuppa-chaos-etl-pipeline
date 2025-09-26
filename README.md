@@ -1,6 +1,6 @@
 ## Generation Data Engineering Final Project - 
 
-## CuppaChaos - ETL Pipeline 
+## CuppaChaos - AWS ETL Pipeline 
                                          
 										                                    
 <img src="images/team_logo.jpg" alt="Team Logo" width="500"/>
@@ -48,6 +48,11 @@ Our solution: a modular ETL pipeline that works locally (PostgreSQL + Grafana) a
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 ## Architecture & Database Schema
+
+### Architecture
+
+![architecture](https://github.com/user-attachments/assets/8c61067d-204b-44de-b030-3f18137780f5)
+
 
 ### Local Workflow:
 
