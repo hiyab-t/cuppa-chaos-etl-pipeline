@@ -56,11 +56,11 @@ Our solution: a modular ETL pipeline that works locally (PostgreSQL + Grafana) a
 
 ### Local Workflow:
 
-               CSV Files → Python ETL Scripts → PostgreSQL Database → Grafana Dashboards
+               CSV Files → Python ETL Scripts → PostgreSQL Database 
 
 ### AWS Workflow:
 
-               CSV Files → S3 Bucket → AWS Lambda → Amazon Redshift
+               CSV Files → S3 Bucket → AWS Lambda → Amazon Redshift → EC2 (Grafana Dashboards running on Docker)
                                    │
                                    └── CloudFormation (Infrastructure as Code)
 
@@ -110,7 +110,7 @@ For scalability, the pipeline was extended to AWS. Branch CSV files are ingested
 * Grafana – Dashboards & BI visualisation
 * UUID – Consistent unique identifiers
 * Docker – Local containerisation
-* AWS (S3, Lambda, Redshift, CloudFormation) – Cloud ETL deployment
+* AWS (S3, Lambda, Redshift, EC2, SQS, CloudFormation) – Cloud ETL deployment
 * Pytest – Unit testing
 
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
