@@ -13,7 +13,6 @@
 * [Project Background](#project-background)
 * [Project Overview](#project-overview)
 * [Architecture & Database Schema](#architecture--database-schema)
-  * [Architecture] (#architecture) 
   * [Local Workflow](#local-workflow)
   * [AWS Workflow](#aws-workflow)
   * [Database Schema](#database-schema)
